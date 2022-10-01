@@ -6,20 +6,20 @@ def get_instances(filename):
     filename_abs_path = os.path.join(current_dir, "../instances/" + filename)
 
     with open(filename_abs_path, 'r') as file:
-
         first_line = file.readline()
         n, m, k, l, u = map(int, first_line.strip().split())
 
         second_line = file.readline()
 
         # Cuidar que os índices dos vértices começam em 0 aqui
-        vextex_weights = map(int, second_line.strip().split())
+        vertices_weights = list(map(int, second_line.strip().split()))
 
-        vertex_range = range(0, m)
+        vertices_range = range(0, n)
+        edges_range = range(0, m)
 
-        edges = [[] for x in vertex_range]
+        edges = [[] for x in edges_range]
 
-        for _ in vertex_range:
+        for _ in edges_range:
             i, j = map(int, file.readline().strip().split())
 
             # Padronizar os índices dos vértices de acordo com os índices dos arrays
@@ -27,12 +27,11 @@ def get_instances(filename):
             j -= 1
 
             edges[i].append(j)
+            edges[j].append(i)
 
-        costs = [[] for x in vertex_range]
+        vertices_costs = [[] for x in vertices_range]
 
-        # Guardamos os custos em uma lista de listas cada vez menores
-        for x in range(0, m):
-            if (x + 1) < m:
-                costs[x] = map(int, file.readline().strip().split()[x + 2:])
+        for x in vertices_range:
+            vertices_costs[x] = list(map(int, file.readline().strip().split()[1:]))
 
-        return Instance(n, m, k, l, u, edges, costs)
+        return Instance(n, m, k, l, u, vertices_weights, edges, vertices_costs)
