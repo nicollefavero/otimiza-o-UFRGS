@@ -1,5 +1,5 @@
 using JuMP
-using GLPKMathProgInterface
+using GLPK
 using Formatting
 
 struct Instance
@@ -64,4 +64,15 @@ end
 
 instance = read_instance(ARGS[1])
 
-println(instance)
+m = Model();
+set_optimizer(m, GLPK.Optimizer);
+
+V_idx = collect(1:instance.n)
+
+k_idx = collect(1:instance.k)
+
+@variable(m, y[i in V_idx, j in V_idx], Bin)
+@variable(m, z[u in V_idx, v in V_idx, l in k_idx], Bin)
+@variable(m, f[u in V_idx, v in V_idx, l in k_idx, i in V_idx, j in V_idx], Bin)
+
+@objective(m, Min, sum(instance.cs[i,j] * y[i,j] for i in V_idx for j in V_idx))
