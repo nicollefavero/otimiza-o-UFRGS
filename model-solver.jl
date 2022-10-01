@@ -1,5 +1,5 @@
 using JuMP
-using GLPK
+using GLPKMathProgInterface
 using Formatting
 
 struct Instance
@@ -29,7 +29,7 @@ function read_instance(path :: String) :: Instance
 
         secondline = readline(file)
         ps_strings = filter(function (s) s != "" end, split_row(secondline))
-        ps = map(function (p) parse(Float64, p) end, ps_strings)
+        ps = map(function (s) parse(Float64, s) end, ps_strings)
 
         E = zeros(Bool, n, n)
 
