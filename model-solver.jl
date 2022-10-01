@@ -6,11 +6,11 @@ struct Instance
     n :: UInt
     m :: UInt
     k :: UInt
-    L :: Float64
-    U :: Float64
-    ps :: Array{Float64}
+    L :: Real
+    U :: Real
+    p :: Array{Real}
     E :: Array{Bool, 2}
-    cs :: Array{Float64, 2}
+    c :: Array{Real, 2}
 end
 
 function read_instance(path :: String) :: Instance
@@ -29,12 +29,9 @@ function read_instance(path :: String) :: Instance
 
         secondline = readline(file)
         ps_strings = filter(function (s) s != "" end, split_row(secondline))
-        ps = map(function (s) parse(Float64, s) end, ps_strings)
+        p = map(function (s) parse(Float64, s) end, ps_strings)
 
         E = zeros(Bool, n, n)
-
-        cs = zeros(Float64, n, n)
-
         for _ in 1:m
             otherline = readline(file)
             i, j = map(function (s) parse(UInt, s) end, split_row(otherline))
@@ -42,16 +39,16 @@ function read_instance(path :: String) :: Instance
             E[j, i] = true
         end
 
-
+        c = zeros(Real, n, n)
         for i in 1:n
             otherline = readline(file)
-            cijs = map(function (s) parse(Float64, s) end, split_row(otherline))
+            col = map(function (s) parse(Float64, s) end, split_row(otherline))
             for j in 1:n
-                cs[i, j] = cijs[j]
+                c[i, j] = col[j]
             end
         end
 
-        Instance(n, m, k, L, U, ps, E, cs)
+        Instance(n, m, k, L, U, p, E, c)
     end
 end
 
@@ -63,16 +60,16 @@ if length(ARGS) != 1
 end
 
 instance = read_instance(ARGS[1])
+(; n, k, c) = instance
 
 m = Model();
 set_optimizer(m, GLPK.Optimizer);
 
-V_idx = collect(1:instance.n)
-
-k_idx = collect(1:instance.k)
+V_idx = collect(1:n)
+k_idx = collect(1:k)
 
 @variable(m, y[i in V_idx, j in V_idx], Bin)
 @variable(m, z[u in V_idx, v in V_idx, l in k_idx], Bin)
 @variable(m, f[u in V_idx, v in V_idx, l in k_idx, i in V_idx, j in V_idx], Bin)
 
-@objective(m, Min, sum(instance.cs[i,j] * y[i,j] for i in V_idx for j in V_idx))
+@objective(m, Min, sum(c[i,j] * y[i,j] for i in V_idx for j in V_idx))
