@@ -60,20 +60,24 @@ function dijkstra(instance :: Instance, start :: UInt) :: Dict{UInt, Array{UInt}
 
     dists[start] = 0
 
-    frontier = [start]
+    frontier = Set{UInt}([start])
     visited = Set{UInt}()
     
     while length(frontier) > 0
-        i = argmin(map(function (i) dists[i] end, frontier))
-        u = frontier[i]
-        deleteat!(frontier, i)
+        u = 0
+        for v in frontier
+            if u == 0 || dists[v] < dists[u]
+                u = v
+            end
+        end
+        delete!(frontier, u)
         push!(visited, u)
 
         for v in 1:n
             if E[u,v] && !(v in visited)
-                new_dists = dists[u] + 1
-                if new_dists < dists[v]
-                    dists[v] = new_dists
+                new_dist = dists[u] + 1
+                if new_dist < dists[v]
+                    dists[v] = new_dist
                     prevs[v] = u
                 end
                 push!(frontier, v)
@@ -99,6 +103,20 @@ function dijkstra(instance :: Instance, start :: UInt) :: Dict{UInt, Array{UInt}
     return paths
 end
 
+function mount_paths(instance :: Instance) :: Dict{Tuple{UInt, UInt}, Array{UInt}}
+    (; n) = instance
+
+    paths = Dict{Tuple{UInt, UInt}, Array{UInt}}()
+    for j in 1:n
+        partial_paths = dijkstra(instance, j)
+        for (i, path) in partial_paths
+            paths[i, j] = path
+        end
+    end
+
+    paths
+end
+
 if length(ARGS) != 1
     println(stderr, "This program accepts and requires exactly one argument.")
     println(stderr, "Usage:")
@@ -110,23 +128,16 @@ instance_path = ARGS[1]
 print("Reading instance at path ", instance_path, "... ")
 
 instance = read_instance(instance_path)
-(; n, k, c) = instance
 
 println("done")
-print("Mounting shortest paths... ")
+print("Mounting paths... ")
 
-paths = Dict{Tuple{UInt, UInt}, Array{UInt}}()
-
-for j in 1:n
-    dijkstra_paths = dijkstra(instance, j)
-    for (i, path) in dijkstra_paths
-        paths[i, j] = path
-    end
-end
+paths = mount_paths(instance)
 
 println("done")
 print("Creating model... ")
 
+(; n, k, c) = instance
 m = Model();
 set_optimizer(m, GLPK.Optimizer);
 
