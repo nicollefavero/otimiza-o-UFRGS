@@ -52,6 +52,53 @@ function read_instance(path :: String) :: Instance
     end
 end
 
+function dijkstra(instance :: Instance, start :: UInt) :: Dict{UInt, Array{UInt}}
+    (; n, E) = instance
+
+    dists = fill(typemax(UInt), n)
+    prevs = fill(UInt(0), n)
+
+    dists[start] = 0
+
+    frontier = [start]
+    visited = Set{UInt}()
+    
+    while length(frontier) > 0
+        i = argmin(map(function (i) dists[i] end, frontier))
+        u = frontier[i]
+        deleteat!(frontier, i)
+        push!(visited, u)
+
+        for v in 1:n
+            if E[u,v] && !(v in visited)
+                new_dists = dists[u] + 1
+                if new_dists < dists[v]
+                    dists[v] = new_dists
+                    prevs[v] = u
+                end
+                push!(frontier, v)
+            end
+        end
+    end
+
+    paths = Dict{UInt, Array{UInt}}()
+
+    for u in 1:n
+        v = u
+        path = []
+        while v != start && v != 0
+            push!(path, v)
+            v = prevs[v]
+        end
+        if v == start
+            push!(path, start)
+            paths[u] = path
+        end
+    end
+
+    return paths
+end
+
 if length(ARGS) != 1
     println(stderr, "This program accepts and requires exactly one argument.")
     println(stderr, "Usage:")
@@ -59,8 +106,26 @@ if length(ARGS) != 1
     exit(-1)
 end
 
-instance = read_instance(ARGS[1])
+instance_path = ARGS[1]
+print("Reading instance at path ", instance_path, "... ")
+
+instance = read_instance(instance_path)
 (; n, k, c) = instance
+
+println("done")
+print("Mounting shortest paths... ")
+
+paths = Dict{Tuple{UInt, UInt}, Array{UInt}}()
+
+for j in 1:n
+    dijkstra_paths = dijkstra(instance, j)
+    for (i, path) in dijkstra_paths
+        paths[i, j] = path
+    end
+end
+
+println("done")
+print("Creating model... ")
 
 m = Model();
 set_optimizer(m, GLPK.Optimizer);
@@ -73,3 +138,8 @@ k_idx = collect(1:k)
 @variable(m, f[u in V_idx, v in V_idx, l in k_idx, i in V_idx, j in V_idx], Bin)
 
 @objective(m, Min, sum(c[i,j] * y[i,j] for i in V_idx for j in V_idx))
+
+@constraint(m, [i in V_idx], sum(y[i, j] for j in V_idx) == 1)
+@constraint(m, sum(y[i, i] for i in V_idx) == k)
+
+println("done")
