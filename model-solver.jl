@@ -2,15 +2,36 @@ using JuMP
 using GLPK
 using Formatting
 
+Vertex = UInt
+Edge = Tuple{Vertex, Vertex}
+EdgeMatrix = Array{Bool, 2}
+CostMatrix  = Array{Real, 2}
+WeightVector = Array{Real}
+Path = Array{Vertex}
+PathTree = Dict{Vertex, Path}
+PathEdges = Tuple{Vertex, Vertex}
+PathTable = Dict{PathEdges, Path}
+FlowEdges = Set{Tuple{UInt, UInt}}
+FlowMatrix = Array{FlowEdges, 3}
+
+struct Graph
+    vertex_count :: UInt
+    edge_count :: UInt
+    edges :: EdgeMatrix
+end
+
 struct Instance
-    n :: UInt
-    m :: UInt
-    k :: UInt
-    L :: Real
-    U :: Real
-    p :: Array{Real}
-    E :: Array{Bool, 2}
-    c :: Array{Real, 2}
+    graph :: Graph
+    subgraph_count :: UInt
+    lower_limit :: Real
+    upper_limit  :: Real
+    weights :: WeightVector
+    costs :: CostMatrix
+end
+
+struct FlowTable
+    arriving :: FlowMatrix
+    leaving :: FlowMatrix
 end
 
 function read_instance(path :: String) :: Instance
@@ -21,47 +42,50 @@ function read_instance(path :: String) :: Instance
     open(path, "r") do file
         firstline = readline(file)
         n_string, m_string, k_string, L_string, U_string = split_row(firstline)
-        n = parse(UInt, n_string)
-        m = parse(UInt, m_string)
-        k = parse(UInt, k_string)
-        L = parse(Float64, L_string)
-        U = parse(Float64, U_string)
+        vertex_count = parse(UInt, n_string)
+        edge_count = parse(UInt, m_string)
+        subgraph_count = parse(UInt, k_string)
+        lower_limit = parse(Float64, L_string)
+        upper_limit = parse(Float64, U_string)
+
+        graph = 
 
         secondline = readline(file)
         ps_strings = filter(function (s) s != "" end, split_row(secondline))
-        p = map(function (s) parse(Float64, s) end, ps_strings)
+        weights = map(function (s) parse(Float64, s) end, ps_strings)
 
-        E = falses(n, n)
-        for _ in 1:m
+        edges = falses(vertex_count, vertex_count)
+        for _ in 1:edge_count
             otherline = readline(file)
-            i, j = map(function (s) parse(UInt, s) end, split_row(otherline))
-            E[i, j] = true
-            E[j, i] = true
+            u, v = map(function (s) parse(UInt, s) end, split_row(otherline))
+            edges[u, v] = true
+            edges[v, u] = true
         end
 
-        c = zeros(Real, n, n)
-        for i in 1:n
+        costs = zeros(Real, vertex_count, vertex_count)
+        for u in 1:vertex_count
             otherline = readline(file)
             col = map(function (s) parse(Float64, s) end, split_row(otherline))
-            for j in 1:n
-                c[i, j] = col[j]
+            for v in 1:vertex_count
+                costs[u, v] = col[v]
             end
         end
 
-        Instance(n, m, k, L, U, p, E, c)
+        graph = Graph(vertex_count, edge_count, edges)
+        Instance(graph, subgraph_count, lower_limit, upper_limit, weights, costs)
     end
 end
 
-function dijkstra(instance :: Instance, start :: UInt) :: Dict{UInt, Array{UInt}}
-    (; n, E) = instance
+function dijkstra(instance :: Instance, start :: Vertex) :: PathTree
+    (; vertex_count, edges) = instance.graph
 
-    dists = fill(typemax(UInt), n)
-    prevs = fill(UInt(0), n)
+    dists = fill(typemax(UInt), vertex_count)
+    prevs = fill(Vertex(0), vertex_count)
 
     dists[start] = 0
 
-    frontier = Set{UInt}([start])
-    visited = Set{UInt}()
+    frontier = Set{Vertex}([start])
+    visited = Set{Vertex}()
     
     while length(frontier) > 0
         u = 0
@@ -73,8 +97,8 @@ function dijkstra(instance :: Instance, start :: UInt) :: Dict{UInt, Array{UInt}
         delete!(frontier, u)
         push!(visited, u)
 
-        for v in 1:n
-            if E[u,v] && !(v in visited)
+        for v in 1:vertex_count
+            if edges[u,v] && !(v in visited)
                 new_dist = dists[u] + 1
                 if new_dist < dists[v]
                     dists[v] = new_dist
@@ -85,9 +109,9 @@ function dijkstra(instance :: Instance, start :: UInt) :: Dict{UInt, Array{UInt}
         end
     end
 
-    paths = Dict{UInt, Array{UInt}}()
+    paths = Dict{Vertex, Path}()
 
-    for u in 1:n
+    for u in 1:vertex_count
         v = u
         path = []
         is_valid = false
@@ -105,35 +129,31 @@ function dijkstra(instance :: Instance, start :: UInt) :: Dict{UInt, Array{UInt}
     return paths
 end
 
-function mount_paths(instance :: Instance) :: Dict{Tuple{UInt, UInt}, Array{UInt}}
-    (; n) = instance
+function mount_paths(instance :: Instance) :: PathTable
+    (; vertex_count) = instance.graph
 
-    paths = Dict{Tuple{UInt, UInt}, Array{UInt}}()
-    for j in 1:n
-        partial_paths = dijkstra(instance, j)
-        for (i, path) in partial_paths
-            paths[i, j] = path
+    paths = Dict{PathEdges, Path}()
+    for u in 1:vertex_count
+        partial_paths = dijkstra(instance, u)
+        for (v, path) in partial_paths
+            paths[v, u] = path
         end
     end
 
     paths
 end
 
-function mount_N_edges(
-        instance :: Instance,
-        paths :: Dict{Tuple{UInt, UInt}, Array{UInt}}
-    ) :: Tuple{Array{Set{Tuple{UInt, UInt}}, 3}, Array{Set{Tuple{UInt, UInt}}, 3}}
+function mount_flow(instance :: Instance, paths :: PathTable) :: FlowTable
+    (; vertex_count) = instance.graph
 
-    (; n) = instance
+    arriving = FlowMatrix(undef, vertex_count, vertex_count, vertex_count)
+    leaving = FlowMatrix(undef, vertex_count, vertex_count, vertex_count)
 
-    N_minus = Array{Set{Tuple{UInt, UInt}}, 3}(undef, n, n, n)
-    N_plus = Array{Set{Tuple{UInt, UInt}}, 3}(undef, n, n, n)
-
-    for u in 1:n
-        for v in 1:n
-            for w in 1:n
-                N_minus[u, v, w] = Set()
-                N_plus[u, v, w] = Set()
+    for u in 1:vertex_count
+        for v in 1:vertex_count
+            for w in 1:vertex_count
+                arriving[u, v, w] = Set()
+                leaving[u, v, w] = Set()
             end
         end
     end
@@ -145,16 +165,16 @@ function mount_N_edges(
             if first_time
                 first_time = false
             else
-                push!(N_minus[u, v, t], (w, t))
-                push!(N_minus[u, v, t], (t, w))
-                push!(N_plus[u, v, w], (w, t))
-                push!(N_plus[u, v, w], (t, w))
+                push!(arriving[u, v, t], (w, t))
+                push!(arriving[u, v, t], (t, w))
+                push!(leaving[u, v, w], (w, t))
+                push!(leaving[u, v, w], (t, w))
             end
             w = t
         end
     end
 
-    N_minus, N_plus
+    FlowTable(arriving, leaving)
 end
 
 if length(ARGS) != 1
@@ -177,12 +197,18 @@ paths = mount_paths(instance)
 println("done")
 print("Creating leaving/arriving edges... ")
 
-N_minus, N_plus = mount_N_edges(instance, paths)
+flow = mount_flow(instance, paths)
 
 println("done")
 print("Creating model... ")
 
-(; n, k, c) = instance
+n = instance.graph.vertex_count
+k = instance.subgraph_count
+c = instance.costs
+
+N_minus = flow.arriving
+N_plus = flow.leaving
+
 m = Model();
 set_optimizer(m, GLPK.Optimizer);
 
