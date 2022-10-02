@@ -8,8 +8,6 @@ EdgeMatrix = Array{Bool, 2}
 CostMatrix  = Array{Real, 2}
 WeightVector = Array{Real}
 Path = Array{Vertex}
-PathTree = Dict{Vertex, Path}
-PathTable = Array{Path}
 FlowEdges = Set{Edge}
 FlowVector = Array{FlowEdges}
 
@@ -75,78 +73,8 @@ function read_instance(path :: String) :: Instance
     end
 end
 
-function dijkstra(instance :: Instance, start :: Vertex) :: PathTree
+function mount_flow(instance :: Instance) :: FlowTable
     (; vertex_count, edges) = instance.graph
-
-    dists = fill(typemax(UInt), vertex_count)
-    prevs = fill(Vertex(0), vertex_count)
-
-    dists[start] = 0
-
-    frontier = Set{Vertex}([start])
-    visited = Set{Vertex}()
-    
-    while length(frontier) > 0
-        u = 0
-        for v in frontier
-            if u == 0 || dists[v] < dists[u]
-                u = v
-            end
-        end
-        delete!(frontier, u)
-        push!(visited, u)
-
-        for v in 1:vertex_count
-            if edges[u,v] && !(v in visited)
-                new_dist = dists[u] + 1
-                if new_dist < dists[v]
-                    dists[v] = new_dist
-                    prevs[v] = u
-                end
-                push!(frontier, v)
-            end
-        end
-    end
-
-    paths = PathTree()
-
-    for u in 1:vertex_count
-        v = u
-        path = []
-        is_valid = false
-        while v != 0
-            push!(path, v)
-            is_valid = v == start
-            v = prevs[v]
-        end
-        if is_valid
-            push!(path, start)
-            paths[u] = path
-        end
-    end
-
-    return paths
-end
-
-function mount_paths(instance :: Instance) :: PathTable
-    (; vertex_count) = instance.graph
-
-    paths = PathTable(undef, vertex_count)
-    unvisited = Set{Vertex}(1:vertex_count)
-    while length(unvisited) > 0
-        u = pop!(unvisited)
-        
-        for (v, path) in dijkstra(instance, u)
-            paths[v] = path
-            delete!(unvisited, v)
-        end
-    end
-
-    paths
-end
-
-function mount_flow(instance :: Instance, paths :: PathTable) :: FlowTable
-    (; vertex_count) = instance.graph
 
     arriving = FlowVector(undef, vertex_count)
     leaving = FlowVector(undef, vertex_count)
@@ -156,14 +84,12 @@ function mount_flow(instance :: Instance, paths :: PathTable) :: FlowTable
         leaving[u] = Set()
     end
 
-    for path in paths
-        u = 0
-        for v in path
-            if u != 0
+    for u in 1:vertex_count
+        for v in 1:vertex_count
+            if edges[u, v]
                 push!(arriving[v], (u, v))
                 push!(leaving[u], (u, v))
             end
-            u = v
         end
     end
 
@@ -183,16 +109,9 @@ print("Reading instance at path ", instance_path, "... ")
 instance = read_instance(instance_path)
 
 println("done")
-print("Mounting paths... ")
+print("Creating arriving/leaving edges... ")
 
-flow = let
-    local paths = mount_paths(instance)
-
-    println("done")
-    print("Creating arriving/leaving edges... ")
-
-    mount_flow(instance, paths)
-end
+flow = mount_flow(instance)
 
 println("done")
 print("Creating model... ")
