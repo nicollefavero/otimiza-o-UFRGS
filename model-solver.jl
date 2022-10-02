@@ -3,12 +3,11 @@ using GLPK
 using Formatting
 
 Vertex = UInt
-Edge = Tuple{Vertex, Vertex}
 EdgeMatrix = Array{Bool, 2}
 CostMatrix  = Array{Real, 2}
 WeightVector = Array{Real}
 Path = Array{Vertex}
-FlowEdges = Set{Edge}
+FlowEdges = Set{Vertex}
 FlowVector = Array{FlowEdges}
 
 struct Graph
@@ -87,8 +86,8 @@ function mount_flow(instance :: Instance) :: FlowTable
     for u in 1:vertex_count
         for v in 1:vertex_count
             if edges[u, v]
-                push!(arriving[v], (u, v))
-                push!(leaving[u], (u, v))
+                push!(arriving[v], u)
+                push!(leaving[u], v)
             end
         end
     end
@@ -119,6 +118,9 @@ print("Creating model... ")
 n = instance.graph.vertex_count
 k = instance.subgraph_count
 c = instance.costs
+p = instance.weights
+L = instance.lower_limit
+U = instance.upper_limit
 
 N_minus = flow.arriving
 N_plus = flow.leaving
@@ -137,5 +139,28 @@ k_idx = collect(1:k)
 
 @constraint(m, [i in V_idx], sum(y[i, j] for j in V_idx) == 1)
 @constraint(m, sum(y[i, i] for i in V_idx) == k)
+@constraint(m, [j in V_idx], sum(p[i] * y[i, j] for i in V_idx) >= L * y[j, j])
+@constraint(m, [j in V_idx], sum(p[i] * y[i, j] for i in V_idx) <= U * y[j, j])
+@constraint(m, [u in V_idx, v in V_idx, l in V_idx],
+            z[u, v, l] <= (y[u, l] + y[v, l]) / 2)
+@constraint(m, [u in V_idx, v in V_idx, l in V_idx],
+            z[u, v, l] >= y[u, l] + y[v, l] + 1)
+@constraint(m, [u in V_idx, v in V_idx, l in V_idx, i in V_idx, j in V_idx],
+            f[u, v, l, i, j] <= z[u, v, l])
+@constraint(m, [u in V_idx, v in V_idx, l in V_idx],
+            sum(f[u, v, l, u, j] for j in N_plus[u]) >= z[u, v, l])
+@constraint(m, [u in V_idx, v in V_idx, l in V_idx],
+            sum(f[u, v, l, u, j] for j in N_plus[u]) <= 1)
+@constraint(m, [u in V_idx, v in V_idx, l in V_idx],
+            sum(f[u, v, l, j, v] for j in N_minus[u]) >= z[u, v, l])
+@constraint(m, [u in V_idx, v in V_idx, l in V_idx, i in V_idx],
+            sum(f[u, v, l, i, j] for j in N_plus[u])
+            - sum(f[u, v, l, j, i] for j in N_minus[u])
+            = 0)
+
+
+optimize!(m);
+
+println("Objective value: ", objective_value(m));
 
 println("done")
