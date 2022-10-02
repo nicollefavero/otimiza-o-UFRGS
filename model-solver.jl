@@ -31,7 +31,7 @@ function read_instance(path :: String) :: Instance
         ps_strings = filter(function (s) s != "" end, split_row(secondline))
         p = map(function (s) parse(Float64, s) end, ps_strings)
 
-        E = zeros(Bool, n, n)
+        E = falses(n, n)
         for _ in 1:m
             otherline = readline(file)
             i, j = map(function (s) parse(UInt, s) end, split_row(otherline))
@@ -90,8 +90,10 @@ function dijkstra(instance :: Instance, start :: UInt) :: Dict{UInt, Array{UInt}
     for u in 1:n
         v = u
         path = []
-        while v != start && v != 0
+        is_valid = false
+        while v != 0
             push!(path, v)
+            is_valid = v == start
             v = prevs[v]
         end
         if v == start
@@ -117,6 +119,44 @@ function mount_paths(instance :: Instance) :: Dict{Tuple{UInt, UInt}, Array{UInt
     paths
 end
 
+function mount_N_edges(
+        instance :: Instance,
+        paths :: Dict{Tuple{UInt, UInt}, Array{UInt}}
+    ) :: Tuple{Array{Set{Tuple{UInt, UInt}}, 3}, Array{Set{Tuple{UInt, UInt}}, 3}}
+
+    (; n) = instance
+
+    N_minus = Array{Set{Tuple{UInt, UInt}}, 3}(undef, n, n, n)
+    N_plus = Array{Set{Tuple{UInt, UInt}}, 3}(undef, n, n, n)
+
+    for u in 1:n
+        for v in 1:n
+            for w in 1:n
+                N_minus[u, v, w] = Set()
+                N_plus[u, v, w] = Set()
+            end
+        end
+    end
+
+    for ((u, v), path) in paths
+        w = u
+        first_time = true
+        for t in path
+            if first_time
+                first_time = false
+            else
+                push!(N_minus[u, v, t], (w, t))
+                push!(N_minus[u, v, t], (t, w))
+                push!(N_plus[u, v, w], (w, t))
+                push!(N_plus[u, v, w], (t, w))
+            end
+            w = t
+        end
+    end
+
+    N_minus, N_plus
+end
+
 if length(ARGS) != 1
     println(stderr, "This program accepts and requires exactly one argument.")
     println(stderr, "Usage:")
@@ -133,6 +173,11 @@ println("done")
 print("Mounting paths... ")
 
 paths = mount_paths(instance)
+
+println("done")
+print("Creating leaving/arriving edges... ")
+
+N_minus, N_plus = mount_N_edges(instance, paths)
 
 println("done")
 print("Creating model... ")
