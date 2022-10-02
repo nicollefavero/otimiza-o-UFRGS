@@ -109,7 +109,7 @@ function dijkstra(instance :: Instance, start :: Vertex) :: PathTree
         end
     end
 
-    paths = Dict{Vertex, Path}()
+    paths = PathTree()
 
     for u in 1:vertex_count
         v = u
@@ -120,7 +120,7 @@ function dijkstra(instance :: Instance, start :: Vertex) :: PathTree
             is_valid = v == start
             v = prevs[v]
         end
-        if v == start
+        if is_valid
             push!(path, start)
             paths[u] = path
         end
@@ -132,7 +132,7 @@ end
 function mount_paths(instance :: Instance) :: PathTable
     (; vertex_count) = instance.graph
 
-    paths = Dict{PathEdges, Path}()
+    paths = PathTable()
     for u in 1:vertex_count
         partial_paths = dijkstra(instance, u)
         for (v, path) in partial_paths
@@ -192,12 +192,14 @@ instance = read_instance(instance_path)
 println("done")
 print("Mounting paths... ")
 
-paths = mount_paths(instance)
+flow = let
+    local paths = mount_paths(instance)
 
-println("done")
-print("Creating leaving/arriving edges... ")
+    println("done")
+    print("Creating arriving/leaving edges... ")
 
-flow = mount_flow(instance, paths)
+    mount_flow(instance, paths)
+end
 
 println("done")
 print("Creating model... ")
