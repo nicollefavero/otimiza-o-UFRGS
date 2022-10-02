@@ -9,10 +9,9 @@ CostMatrix  = Array{Real, 2}
 WeightVector = Array{Real}
 Path = Array{Vertex}
 PathTree = Dict{Vertex, Path}
-PathEdges = Tuple{Vertex, Vertex}
-PathTable = Dict{PathEdges, Path}
-FlowEdges = Set{Tuple{UInt, UInt}}
-FlowMatrix = Array{FlowEdges, 3}
+PathTable = Array{Path}
+FlowEdges = Set{Edge}
+FlowVector = Array{FlowEdges}
 
 struct Graph
     vertex_count :: UInt
@@ -30,8 +29,8 @@ struct Instance
 end
 
 struct FlowTable
-    arriving :: FlowMatrix
-    leaving :: FlowMatrix
+    arriving :: FlowVector
+    leaving :: FlowVector
 end
 
 function read_instance(path :: String) :: Instance
@@ -132,11 +131,14 @@ end
 function mount_paths(instance :: Instance) :: PathTable
     (; vertex_count) = instance.graph
 
-    paths = PathTable()
-    for u in 1:vertex_count
-        partial_paths = dijkstra(instance, u)
-        for (v, path) in partial_paths
-            paths[v, u] = path
+    paths = PathTable(undef, vertex_count)
+    unvisited = Set{Vertex}(1:vertex_count)
+    while length(unvisited) > 0
+        u = pop!(unvisited)
+        
+        for (v, path) in dijkstra(instance, u)
+            paths[v] = path
+            delete!(unvisited, v)
         end
     end
 
@@ -146,31 +148,22 @@ end
 function mount_flow(instance :: Instance, paths :: PathTable) :: FlowTable
     (; vertex_count) = instance.graph
 
-    arriving = FlowMatrix(undef, vertex_count, vertex_count, vertex_count)
-    leaving = FlowMatrix(undef, vertex_count, vertex_count, vertex_count)
+    arriving = FlowVector(undef, vertex_count)
+    leaving = FlowVector(undef, vertex_count)
 
     for u in 1:vertex_count
-        for v in 1:vertex_count
-            for w in 1:vertex_count
-                arriving[u, v, w] = Set()
-                leaving[u, v, w] = Set()
-            end
-        end
+        arriving[u] = Set()
+        leaving[u] = Set()
     end
 
-    for ((u, v), path) in paths
-        w = u
-        first_time = true
-        for t in path
-            if first_time
-                first_time = false
-            else
-                push!(arriving[u, v, t], (w, t))
-                push!(arriving[u, v, t], (t, w))
-                push!(leaving[u, v, w], (w, t))
-                push!(leaving[u, v, w], (t, w))
+    for path in paths
+        u = 0
+        for v in path
+            if u != 0
+                push!(arriving[v], (u, v))
+                push!(leaving[u], (u, v))
             end
-            w = t
+            u = v
         end
     end
 
