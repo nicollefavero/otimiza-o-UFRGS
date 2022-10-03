@@ -132,8 +132,7 @@ V_idx = collect(1:n)
 k_idx = collect(1:k)
 
 @variable(m, y[i in V_idx, j in V_idx], Bin)
-@variable(m, z[u in V_idx, v in V_idx, l in k_idx], Bin)
-@variable(m, f[u in V_idx, v in V_idx, l in k_idx, i in V_idx, j in V_idx], Bin)
+@variable(m, f[u in V_idx, v in V_idx, i in V_idx, j in V_idx], Bin)
 
 @objective(m, Min, sum(c[i,j] * y[i,j] for i in V_idx for j in V_idx))
 
@@ -141,23 +140,22 @@ k_idx = collect(1:k)
 @constraint(m, sum(y[i, i] for i in V_idx) == k)
 @constraint(m, [j in V_idx], sum(p[i] * y[i, j] for i in V_idx) >= L * y[j, j])
 @constraint(m, [j in V_idx], sum(p[i] * y[i, j] for i in V_idx) <= U * y[j, j])
-@constraint(m, [u in V_idx, v in V_idx, l in V_idx],
-            z[u, v, l] <= (y[u, l] + y[v, l]) / 2)
-@constraint(m, [u in V_idx, v in V_idx, l in V_idx],
-            z[u, v, l] >= y[u, l] + y[v, l] + 1)
-@constraint(m, [u in V_idx, v in V_idx, l in V_idx, i in V_idx, j in V_idx],
-            f[u, v, l, i, j] <= z[u, v, l])
-@constraint(m, [u in V_idx, v in V_idx, l in V_idx],
-            sum(f[u, v, l, u, j] for j in N_plus[u]) >= z[u, v, l])
-@constraint(m, [u in V_idx, v in V_idx, l in V_idx],
-            sum(f[u, v, l, u, j] for j in N_plus[u]) <= 1)
-@constraint(m, [u in V_idx, v in V_idx, l in V_idx],
-            sum(f[u, v, l, j, v] for j in N_minus[u]) >= z[u, v, l])
-@constraint(m, [u in V_idx, v in V_idx, l in V_idx, i in V_idx],
-            sum(f[u, v, l, i, j] for j in N_plus[u])
-            - sum(f[u, v, l, j, i] for j in N_minus[u])
+@constraint(m, [u in  V_idx, v in V_idx],
+            sum(f[u, v, u, j] for j in N_plus[u]) = 1)
+@constraint(m, [u in  V_idx, v in V_idx],
+            sum(f[u, v, i, v] for i in N_minus[v]) = 1)
+@constraint(m, [u in  V_idx, v in V_idx, w in V_idx],
+            sum(f[u, v, i, w] for i in N_plus[w])
+            - sum(f[u, v, w, j] for j in N_minus[w])
             = 0)
-
+@constraint(m, [u in V_idx, v in V_idx, i in V_idx, j in V_idx],
+            sum(l * y[u, l] for l in V_idx)
+            - sum(l * y[v, l] for l in V_idx)
+            <= V_idx - V_idx * f[u, v, i, j])
+@constraint(m, [u in V_idx, v in V_idx, i in V_idx, j in V_idx],
+            sum(l * y[v, l] for l in V_idx)
+            - sum(l * y[u, l] for l in V_idx)
+            <= V_idx - V_idx * f[u, v, i, j])
 
 optimize!(m);
 
