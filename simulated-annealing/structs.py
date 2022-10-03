@@ -14,21 +14,28 @@ class Subgraph():
         Available Vertices: {self.available_vertices}
         """
     
-    def is_connected_graph(self):
-        todo()
+    def is_connected_graph(self, instance):
+        explored = []
+        border = []
+
+        vertices = list(self.subgraph.keys())
+
+        # TODO Continuar a implementação
 
 class Solution:
-    def __init__(self, feasible, costs):
-        self.feasible = feasible
+    def __init__(self, has_valid_weight, is_connected, costs):
+        self.has_valid_weight = has_valid_weight
+        self.is_connected = is_connected
         self.subgraphs = []
         self.cost = None
         self.costs = costs
 
     def __str__(self):
         s = f"""
-                Solution 
-                Is feasible: {self.feasible},
-                Subgraphs:
+            Solution 
+            Is feasible: {self.has_valid_weight},
+            Is connected: {self.is_connected},
+            Subgraphs:
                 """
 
         for i, sg in enumerate(self.subgraphs):
@@ -48,10 +55,32 @@ class Solution:
 
         return self.cost
 
+    def is_connection_criteria_satisfied(self, instance):
+        for s in self.subgraphs:
+            if not s.is_connected_graph(instance):
+                return False
+        return True
+
+    def is_weight_criteria_satisfied(self, instance):
+        for s in self.subgraphs:
+            if (s.weight < instance.min_weight) or (s.weight > instance.max_weight):
+                return False
+        return True
+
+    def get_neighbour_solution(self, instance):
+        # TODO Implementar algo aqui
+        # Opção 01: Swap de centros (objetivo: alterar os pesos)
+        # Opção 02: Swap de centros (objetivo: conectividade)
+        # Opção 03: Swap de vertices aleatórios
+        todo()
+
 
 class SimulatedAnnealing():
-    def __init__(self, instance):
+    def __init__(self, instance, temperature):
         self.instance = instance
+        self.BKS = None
+        self.temperature = temperature
+
 
     def first_solution(self):
         # itera sobre os vertices da borda, e pega o primeiro cuja adição ao subgrafo nao faz o peso total nao ultrapassar U e que não esteja nos explorados
@@ -69,7 +98,7 @@ class SimulatedAnnealing():
         explored = []
         subgraphs_count = 0
 
-        solution = Solution(True, self.instance.vertices_costs)
+        solution = Solution(True, True, self.instance.vertices_costs)
 
         subgraph_qt = self.instance.subgraphs_qt
         while subgraphs_count < subgraph_qt:
@@ -102,7 +131,7 @@ class SimulatedAnnealing():
                 
                 if v is None:
                     if weight < self.instance.min_weight:
-                        solution.feasible = False
+                        solution.has_valid_weight = False
                         
                     solution.subgraphs.append(Subgraph(subgraph, weight, available))
                     subgraphs_count += 1
@@ -135,11 +164,8 @@ class SimulatedAnnealing():
                         remaining_qt -= 1
                         break
 
-        if remaining_qt == 0:
-            solution.feasible = True
-
-        else:
-            solution.feasible = False
+        if remaining_qt >= 0:
+            solution.has_valid_weight = False
             remaining = copy.deepcopy(remaining_aux)
             len_sg = len(solution.subgraphs)
 
@@ -153,10 +179,9 @@ class SimulatedAnnealing():
             
                 else:
                     for i in range(0, len_sg):
-                        if vr in solution.subgraphs[i].available_vertices:
-                            idx_sg = i
-                        else:
-                            return None        # Infactibilidade na conectividade do grafo daí
+                        idx_sg = i
+                        if not (vr in solution.subgraphs[i].available_vertices):
+                            solution.is_connected = False                   # Infactibilidade na conectividade do grafo daí
 
                 solution.subgraphs[idx_sg].subgraph[vr] = vr_weight
                 solution.subgraphs[idx_sg].weight += vr_weight
@@ -165,6 +190,10 @@ class SimulatedAnnealing():
                 sg = (sg + 1) % len_sg
 
         return solution
+
+    def metropolis(self):
+        # TODO Implementar    
+        todo()  
 
                         
 class Instance:
