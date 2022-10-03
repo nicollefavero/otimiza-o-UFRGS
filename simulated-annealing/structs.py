@@ -9,17 +9,20 @@ class Subgraph():
 
     def __str__(self):
         return f"""
-                Vertices: {self.subgraph}
-                Total Weight: {self.weight}
-                Available Vertices: {self.available_vertices}
-                """
-
+        Vertices: {self.subgraph}
+        Total Weight: {self.weight}
+        Available Vertices: {self.available_vertices}
+        """
+    
+    def is_connected_graph(self):
+        todo()
 
 class Solution:
-    def __init__(self, feasible):
+    def __init__(self, feasible, costs):
         self.feasible = feasible
         self.subgraphs = []
         self.cost = None
+        self.costs = costs
 
     def __str__(self):
         s = f"""
@@ -34,6 +37,16 @@ class Solution:
                 """
         
         return s
+
+    def objective(self):
+        self.cost = 0
+        for sg in self.subgraphs:
+            sg_vertices = list(sg.subgraph.keys())
+            center = sg_vertices[0]
+            for i in range(1, len(sg_vertices)):
+                self.cost += self.costs[sg_vertices[i]][center]
+
+        return self.cost
 
 
 class SimulatedAnnealing():
@@ -56,7 +69,7 @@ class SimulatedAnnealing():
         explored = []
         subgraphs_count = 0
 
-        solution = Solution(True)
+        solution = Solution(True, self.instance.vertices_costs)
 
         subgraph_qt = self.instance.subgraphs_qt
         while subgraphs_count < subgraph_qt:
@@ -198,10 +211,6 @@ class Instance:
     
         return graph_infos
 
-    # def get_vertex_neighbors(self, v):
-    #     if v < len(self.vertices_edges):
-    #         return self.vertices_edges[v]
-    #     else:
 
 
 
