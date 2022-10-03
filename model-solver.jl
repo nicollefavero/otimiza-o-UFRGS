@@ -141,24 +141,27 @@ k_idx = collect(1:k)
 @constraint(m, [j in V_idx], sum(p[i] * y[i, j] for i in V_idx) >= L * y[j, j])
 @constraint(m, [j in V_idx], sum(p[i] * y[i, j] for i in V_idx) <= U * y[j, j])
 @constraint(m, [u in  V_idx, v in V_idx],
-            sum(f[u, v, u, j] for j in N_plus[u]) = 1)
+            sum(f[u, v, u, j] for j in N_plus[u]) == 1)
 @constraint(m, [u in  V_idx, v in V_idx],
-            sum(f[u, v, i, v] for i in N_minus[v]) = 1)
+            sum(f[u, v, i, v] for i in N_minus[v]) == 1)
 @constraint(m, [u in  V_idx, v in V_idx, w in V_idx],
             sum(f[u, v, i, w] for i in N_plus[w])
             - sum(f[u, v, w, j] for j in N_minus[w])
-            = 0)
+            == 0)
 @constraint(m, [u in V_idx, v in V_idx, i in V_idx, j in V_idx],
             sum(l * y[u, l] for l in V_idx)
             - sum(l * y[v, l] for l in V_idx)
-            <= V_idx - V_idx * f[u, v, i, j])
+            <= n - n * f[u, v, i, j])
 @constraint(m, [u in V_idx, v in V_idx, i in V_idx, j in V_idx],
             sum(l * y[v, l] for l in V_idx)
             - sum(l * y[u, l] for l in V_idx)
-            <= V_idx - V_idx * f[u, v, i, j])
+            <= n - n * f[u, v, i, j])
+
+println("done")
+println("Optimizing model...")
 
 optimize!(m);
 
+println("done")
 println("Objective value: ", objective_value(m));
 
-println("done")
