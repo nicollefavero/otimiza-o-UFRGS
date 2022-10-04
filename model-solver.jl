@@ -139,26 +139,36 @@ k_idx = collect(1:k)
 @constraint(m, [i in V_idx], sum(y[i, j] for j in V_idx) == 1)
 @constraint(m, sum(y[i, i] for i in V_idx) == k)
 @constraint(m, [j in V_idx], sum(p[i] * y[i, j] for i in V_idx) >= L * y[j, j])
-@constraint(m, [j in V_idx], sum(p[i] * y[i, j] for i in V_idx) <= U * y[j, j])
+@constraint(m, [j in V_idx],
+            sum(p[i] * y[i, j] for i in V_idx)
+            <= U + (1 - y[j, j]) * sum(p[i] for i in V_idx))
 @constraint(m, [u in  V_idx, v in V_idx],
-            sum(f[u, v, u, j] for j in N_plus[u]) == 1)
+            sum(f[u, v, u, j] for j in N_plus[u])
+            -
+            sum(f[u, v, u, j] for j in N_minus[u])
+            == 1)
 @constraint(m, [u in  V_idx, v in V_idx],
-            sum(f[u, v, i, v] for i in N_minus[v]) == 1)
+            sum(f[u, v, u, j] for j in N_minus[v])
+            -
+            sum(f[u, v, u, j] for j in N_plus[v])
+            == 1)
 @constraint(m, [u in  V_idx, v in V_idx, w in V_idx],
             sum(f[u, v, i, w] for i in N_plus[w])
             - sum(f[u, v, w, j] for j in N_minus[w])
             == 0)
 @constraint(m, [u in V_idx, v in V_idx, i in V_idx, j in V_idx],
-            sum(l * y[u, l] for l in V_idx)
-            - sum(l * y[v, l] for l in V_idx)
+            sum(l * y[i, l] for l in V_idx)
+            - sum(l * y[j, l] for l in V_idx)
             <= n - n * f[u, v, i, j])
 @constraint(m, [u in V_idx, v in V_idx, i in V_idx, j in V_idx],
-            sum(l * y[v, l] for l in V_idx)
-            - sum(l * y[u, l] for l in V_idx)
+            sum(l * y[j, l] for l in V_idx)
+            - sum(l * y[i, l] for l in V_idx)
             <= n - n * f[u, v, i, j])
 
 println("done")
-println("Optimizing model...")
+print("Optimizing model...")
+
+write_to_file(m, "model.lp")
 
 optimize!(m);
 
